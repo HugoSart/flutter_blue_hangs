@@ -61,16 +61,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _toggleScan() async {
     final blue = FlutterBlue.instance;
-    blue.setLogLevel(LogLevel.debug);
 
     // Start scan
     if (!isScanning) {
       print('APP -> Starting scan');
       final aux = blue.scanResults.listen((r) {
         setState(() {
-          results.forEach((element) {
-            print('APP -> Found device $element.}');
-          });
           results = r.map((e) => e.device).toList();
         });
       });
@@ -101,16 +97,40 @@ class _MyHomePageState extends State<MyHomePage> {
       margin: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
       child: InkWell(
           onTap: () => _onDeviceTap(device),
-          child: Center(
-              child: Text(device.name == null || device.name.isEmpty ? device.id.toString() : device.name, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: Text(device.name == null || device.name.isEmpty ? device.id.toString() : device.name, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                StreamBuilder<BluetoothDeviceState>(
+                  stream: device.state,
+                  builder: (context, snapshot) {
+                    final state = snapshot.data;
+                    return Text(state == null ? 'unknown' : state.toString().split('.')[1], style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w300, fontSize: 12, decoration: TextDecoration.underline));
+                  }
+                )
+              ],
+            ),
+          )),
     );
   }
 
   Future<void> _onDeviceTap(BluetoothDevice device) async {
-    print('APP -> Connecting to ${device.id}');
-    await device.connect(autoConnect: true);
-    print('APP -> Successfully connected to ${device.id}!');
-    device.disconnect();
+    if (await device.state.first == BluetoothDeviceState.connected) {
+      print('APP -> Disconnecting to ${device.id}');
+      await device.disconnect();
+      print('APP -> Successfully disconnected from ${device.id}!');
+    } else if (await device.state.first == BluetoothDeviceState.disconnected) {
+      print('APP -> Connecting to ${device.id}');
+      device.state.listen((event) async {
+        print('APP -> Updated device state to ${await device.state.first}.');
+      });
+      await device.connect(autoConnect: true);
+      print('APP -> Successfully connected to ${device.id}!');
+    }
   }
 
 }
